@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ThreatLens · Connection check</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #0b1220; color: #e9f2ff; }
+    body { max-width: 1050px; margin: 0 auto; padding: 32px 20px 60px; }
+    nav { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 28px; }
+    h1 { margin-bottom: 4px; font-size: 2.2rem; }
+    p { line-height: 1.5; color: #b6c6da; }
+    a { color: #69d2ef; }
+    .card { background: #162238; border: 1px solid #31425e; border-radius: 14px; padding: 20px; margin-top: 20px; }
+    label { display: block; font-weight: 650; margin: 12px 0 8px; }
+    select, button, textarea { font: inherit; }
+    select, textarea { box-sizing: border-box; width: 100%; background: #0d1728; color: #e9f2ff; border: 1px solid #51627c; border-radius: 8px; padding: 12px; }
+    textarea { min-height: 300px; resize: vertical; font-family: ui-monospace, Consolas, monospace; font-size: 0.87rem; }
+    button { background: #45c9dc; color: #071725; border: 0; border-radius: 8px; padding: 11px 18px; margin-top: 14px; cursor: pointer; font-weight: 700; }
+    button:disabled { opacity: .5; cursor: wait; }
+    .status { font-weight: 700; }
+    .error { color: #ffaaa6; }
+    .result { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+    .metric { background: #0d1728; padding: 14px; border-radius: 8px; }
+    .metric strong { display: block; font-size: 1.45rem; margin-top: 5px; }
+    .muted { color: #a8bad0; font-size: .9rem; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <nav><a href="/predict">Prediction demo</a><a href="/api-docs">API reference</a><a href="/mitre">MITRE mapping</a><a href="/metrics">Metrics JSON</a></nav>
+  <h1>ThreatLens</h1>
+  <p>Test an NSL-KDD connection record in your browser. Choose a sample, edit its 41 features if you like, and run a prediction.</p>
+  <p class="status" id="model-status">{{ 'Model ready' if model_ready else 'Model missing — run training first' }}</p>
+  <div class="card">
+    <label for="sample">Example record (known label)</label>
+    <select id="sample">
+      <option value="normal">Normal</option><option value="dos" selected>DoS</option><option value="probe">Probe</option><option value="r2l">R2L</option><option value="u2r">U2R</option>
+    </select>
+    <label for="record">Connection features (JSON)</label>
+    <textarea id="record" spellcheck="false" aria-label="Connection features JSON"></textarea>
+    <button id="submit" type="button">Predict connection</button>
+    <p id="message" role="status"></p>
+  </div>
+  <div class="card" id="output" hidden>
+    <h2>Prediction</h2>
+    <div class="result" id="summary"></div>
+    <p class="muted">Confidence is the Random Forest vote proportion, not a calibrated probability. MITRE mappings are illustrative analyst context.</p>
+    <details><summary>Full API response</summary><pre id="raw"></pre></details>
+  </div>
+  <p class="muted">The R2L and U2R sample records may be misclassified as Normal. See <a href="/metrics">held-out metrics</a> and <a href="/schema">feature schema</a>.</p>
+  <script>
+    const examples = {{ examples | tojson }};
+    const selector = document.getElementById('sample');
+    const record = document.getElementById('record');
+    const message = document.getElementById('message');
+    const output = document.getElementById('output');
+    const summary = document.getElementById('summary');
+    const raw = document.getElementById('raw');
+    const button = document.getElementById('submit');
+    function loadExample() { record.value = JSON.stringify(examples[selector.value], null, 2); output.hidden = true; message.textContent = ''; }
+    selector.addEventListener('change', loadExample);
+    loadExample();
+    button.addEventListener('click', async () => {
+      message.textContent = '';
+      output.hidden = true;
+      let payload;
+      try { payload = JSON.parse(record.value); }
+      catch (error) { message.className = 'error'; message.textContent = 'Invalid JSON: ' + error.message; return; }
+      button.disabled = true;
+      try {
+        const response = await fetch('/predict', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const data = await response.json();
+        if (!response.ok) { throw new Error(data.error || 'Prediction failed'); }
+        const result = data.results[0];
+        const fields = [['Class', result.prediction], ['Confidence', (result.confidence * 100).toFixed(1) + '%'], ['Severity', result.severity], ['MITRE ATT&CK', result.mitre_attack.technique || 'None']];
+        summary.replaceChildren();
+        fields.forEach(([name, value]) => { const box = document.createElement('div'); box.className = 'metric'; const title = document.createElement('span'); title.textContent = name; const detail = document.createElement('strong'); detail.textContent = value; box.append(title, detail); summary.append(box); });
+        raw.textContent = JSON.stringify(data, null, 2);
+        output.hidden = false;
+        message.className = '';
+      } catch (error) { message.className = 'error'; message.textContent = error.message; }
+      finally { button.disabled = false; }
+    });
+  </script>
+</body>
+</html>

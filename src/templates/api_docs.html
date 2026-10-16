@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThreatLens API reference</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0b1220;color:#e9f2ff}body{max-width:1060px;margin:auto;padding:28px 20px 60px}nav{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:28px}a{color:#6bd6ed}h1{font-size:2.2rem;margin-bottom:4px}p,li{color:#b6c6da;line-height:1.55}.card{background:#162238;border:1px solid #31425e;border-radius:12px;padding:18px;margin:18px 0}code,pre{font-family:ui-monospace,Consolas,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#0d1728;padding:14px;border-radius:8px;color:#daf4fc}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:10px;border-bottom:1px solid #34445e;vertical-align:top}th{color:#e9f2ff}td{color:#b6c6da}.method{display:inline-block;background:#27596a;color:#dffbff;border-radius:4px;padding:3px 7px;font-size:.8rem;font-weight:700}.route{color:#fff;font-weight:700}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.field{padding:8px 10px;background:#0d1728;border-radius:6px}
+</style></head><body>
+<nav><a href="/predict">Prediction demo</a><a href="/api-docs">API reference</a><a href="/mitre">MITRE mapping</a><a href="/metrics">Metrics JSON</a></nav>
+<h1>API reference</h1><p>Local JSON API for classifying structured NSL-KDD connection records. Base URL: <code>http://127.0.0.1:5000</code>. Start it with <code>run.bat -Mode Serve</code>.</p>
+<div class="card"><h2>Endpoints</h2><table><thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead><tbody>
+<tr><td><span class="method">GET</span></td><td class="route">/health</td><td>Returns <code>{"status":"ready"}</code> (200) or <code>model_missing</code> (503).</td></tr>
+<tr><td><span class="method">GET</span></td><td class="route">/schema</td><td>Lists the 41 required features and categorical fields.</td></tr>
+<tr><td><span class="method">GET</span></td><td class="route">/metrics</td><td>Returns saved held-out evaluation metadata; 503 without a model.</td></tr>
+<tr><td><span class="method">GET</span></td><td class="route">/predict</td><td>Opens the browser demo.</td></tr>
+<tr><td><span class="method">POST</span></td><td class="route">/predict</td><td>Classifies one JSON object or an array of 1–100 objects.</td></tr>
+<tr><td><span class="method">GET</span></td><td class="route">/mitre</td><td>Shows category-to-technique associations and hunting notes.</td></tr>
+</tbody></table></div>
+<div class="card"><h2>POST /predict</h2><p>Set <code>Content-Type: application/json</code>. Supply every feature below. Key order does not matter. Categorical values are strings; other fields are finite, nonnegative numbers. Rate fields must be between 0 and 1. <code>protocol_type</code> accepts <code>tcp</code>, <code>udp</code>, or <code>icmp</code>. Unknown service or flag strings can be supplied, but prediction quality for unseen values is uncertain.</p>
+<h3>Example request</h3><pre>{{ example | tojson(indent=2) }}</pre>
+<h3>Windows curl</h3><pre>curl.exe --noproxy "*" -X POST http://127.0.0.1:5000/predict -H "Content-Type: application/json" --data-binary "@examples/dos.json"</pre>
+<h3>Response fields</h3><table><tbody>
+<tr><td><code>results</code></td><td>One result per input record, in input order.</td></tr>
+<tr><td><code>prediction</code></td><td>Normal, DoS, Probe, R2L, or U2R.</td></tr>
+<tr><td><code>confidence</code></td><td>Maximum Random Forest vote proportion (0–1); not calibrated certainty.</td></tr>
+<tr><td><code>probabilities</code></td><td>Per-class vote proportions.</td></tr>
+<tr><td><code>severity</code></td><td>Project-defined triage level.</td></tr>
+<tr><td><code>mitre_attack</code></td><td>Illustrative technique ID, name, URL, and mapping type; null fields for Normal.</td></tr>
+</tbody></table><h3>Possible errors</h3><p><code>400</code> invalid JSON shape or features; <code>415</code> non-JSON content type; <code>503</code> model missing.</p></div>
+<div class="card"><h2>Required features ({{ features | length }})</h2><p>Categorical: {{ categorical | join(', ') }}. The remaining features are numeric.</p><div class="grid">{% for feature in features %}<div class="field"><code>{{ feature }}</code>{% if feature in categorical %} · string{% endif %}</div>{% endfor %}</div></div>
+<p>This API accepts already computed connection features. It does not capture traffic or calculate NSL-KDD statistics from packets.</p>
+</body></html>

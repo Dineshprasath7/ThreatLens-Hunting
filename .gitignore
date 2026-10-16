@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+.venv/
+models/*.joblib
+data/processed/
+output/arff_converted.csv
